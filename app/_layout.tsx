@@ -1,24 +1,39 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { useEffect } from 'react';
+import { router, Slot, useSegments } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { AuthProvider, useAuth } from '../lib/auth-context';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+SplashScreen.preventAutoHideAsync();
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+function Gate() {
+  const { authState } = useAuth();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (authState === null) return; // still resolving, splash stays up
+
+    const group = segments[0]; // '(auth)' | '(owner)' | '(admin)' | undefined
+
+    if (authState.status === 'unauthenticated' && group !== '(auth)') {
+      router.replace('/(auth)/login');
+    } else if (authState.status === 'owner' && group !== '(owner)') {
+      router.replace('/(owner)');
+    } else if (authState.status === 'admin' && group !== '(admin)') {
+      router.replace('/(admin)');
+    }
+
+    SplashScreen.hideAsync();
+  }, [authState, segments]);
+
+  if (authState === null) return null; // splash screen covers this frame
+
+  return <Slot />;
+}
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
   );
 }
