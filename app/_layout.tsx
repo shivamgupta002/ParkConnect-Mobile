@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 import { router, Slot, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { QueryClientProvider } from '@tanstack/react-query';
+
 import { AuthProvider, useAuth } from '../lib/auth-context';
+import { queryClient } from '../lib/query-client';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -15,7 +18,7 @@ function Gate() {
     const group = segments[0]; // '(auth)' | '(owner)' | '(admin)' | undefined
 
     if (authState.status === 'unauthenticated' && group !== '(auth)') {
-      router.replace('/(auth)/login');
+      router.replace('/(auth)/welcome');
     } else if (authState.status === 'owner' && group !== '(owner)') {
       router.replace('/(owner)');
     } else if (authState.status === 'admin' && group !== '(admin)') {
@@ -32,8 +35,10 @@ function Gate() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <Gate />
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Gate />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
