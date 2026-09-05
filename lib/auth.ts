@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
+import axios from 'axios';
 
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
@@ -50,8 +51,24 @@ export async function getAccessToken(): Promise<string | null> {
   return getItemAsync(ACCESS_TOKEN_KEY);
 }
 
+export async function getRefreshToken(): Promise<string | null> {
+  return getItemAsync(REFRESH_TOKEN_KEY);
+}
+
 export async function setAccessToken(token: string): Promise<void> {
   await setItemAsync(ACCESS_TOKEN_KEY, token);
+}
+
+/**
+ * Saves both tokens after login/register/verify-otp. Screens call this one
+ * function rather than setAccessToken + a separate refresh-token setter, so
+ * there's a single place that writes both keys together.
+ */
+export async function saveTokens(accessToken: string, refreshToken: string): Promise<void> {
+  await Promise.all([
+    setItemAsync(ACCESS_TOKEN_KEY, accessToken),
+    setItemAsync(REFRESH_TOKEN_KEY, refreshToken),
+  ]);
 }
 
 export async function clearTokens(): Promise<void> {
@@ -59,6 +76,41 @@ export async function clearTokens(): Promise<void> {
     deleteItemAsync(ACCESS_TOKEN_KEY),
     deleteItemAsync(REFRESH_TOKEN_KEY),
   ]);
+}
+
+/**
+ * Exchanges the stored refresh token for a new access token via
+ * POST /auth/refresh ({ refresh_token }) -> { access_token, token_type }.
+ *
+ * Uses a plain axios call (not the shared `api` instance) so it never goes
+ * through api.ts's own response interceptor — that interceptor calls this
+ * function on a 401, and reusing `api` here would risk an infinite loop.
+ *
+ * Throws (after clearing both tokens) if there's no refresh token on device
+ * or the backend rejects it as expired/invalid, so the caller can redirect
+ * to login.
+ */
+export async function refreshAccessToken(): Promise<string> {
+  const refresh_token = await getRefreshToken();
+
+  if (!refresh_token) {
+    await clearTokens();
+    throw new Error('No refresh token available');
+  }
+
+  try {
+    const response = await axios.post<{ access_token: string; token_type: string }>(
+      `${API_BASE_URL}/auth/refresh`,
+      { refresh_token }
+    );
+
+    const { access_token } = response.data;
+    await setItemAsync(ACCESS_TOKEN_KEY, access_token);
+    return access_token;
+  } catch (err) {
+    await clearTokens();
+    throw err;
+  }
 }
 
 /**
