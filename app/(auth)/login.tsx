@@ -110,7 +110,7 @@ export default function LoginScreen() {
         response.data.refresh_token
       );
 
-      router.replace('/');
+      router.replace('/(app)');
     } catch (err) {
       const axiosErr = err as AxiosError<{ detail?: string }>;
 

@@ -1,32 +1,39 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
-import { AuthState, clearTokens, resolveAuthState } from './auth';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { getAccessToken, saveTokens, clearTokens } from '@/lib/auth';
 
 interface AuthContextValue {
-  authState: AuthState | null; // null while the initial check is in flight
-  refresh: () => Promise<void>;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authState, setAuthState] = useState<AuthState | null>(null);
-
-  const refresh = useCallback(async () => {
-    setAuthState(await resolveAuthState());
-  }, []);
-
-  const logout = useCallback(async () => {
-    await clearTokens();
-    setAuthState({ status: 'unauthenticated' });
-  }, []);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    (async () => {
+      const token = await getAccessToken();
+      setIsAuthenticated(!!token);
+      setIsLoading(false);
+    })();
+  }, []);
+
+  const login = async (accessToken: string, refreshToken: string) => {
+    await saveTokens(accessToken, refreshToken);
+    setIsAuthenticated(true);
+  };
+
+  const logout = async () => {
+    await clearTokens();
+    setIsAuthenticated(false);
+  };
 
   return (
-    <AuthContext.Provider value={{ authState, refresh, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -34,6 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
   return ctx;
 }
