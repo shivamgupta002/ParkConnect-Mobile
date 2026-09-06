@@ -7,17 +7,12 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getAccessToken, getRefreshToken } from '@/lib/auth';
+import { AuthProvider } from '@/lib/auth-context';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: '(owner)',
 };
 
-/**
- * Redirects unauthenticated users to /(auth)/login and authenticated users
- * away from the (auth) group, mirroring frontend/middleware.ts. Runs on
- * cold start and whenever the active route segment changes, so a back-
- * navigation into (tabs) after logout also gets caught.
- */
 function useAuthGate() {
   const router = useRouter();
   const segments = useSegments();
@@ -37,7 +32,7 @@ function useAuthGate() {
       if (!isAuthenticated && !inAuthGroup) {
         router.replace('/(auth)/login');
       } else if (isAuthenticated && inAuthGroup) {
-        router.replace('/(tabs)');
+        router.replace('/(owner)');
       }
 
       if (!cancelled) setIsReady(true);
@@ -53,7 +48,7 @@ function useAuthGate() {
   return isReady;
 }
 
-export default function RootLayout() {
+function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const isReady = useAuthGate();
 
@@ -68,11 +63,20 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(owner)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(admin)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
   );
 }
